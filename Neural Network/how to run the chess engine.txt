@@ -1,0 +1,7 @@
+Anaconda prompt 
+
+pip install pygame python-chess torch
+
+conda activate pytorch_env
+cd path
+python play_chess.py
