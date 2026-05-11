@@ -1,0 +1,186 @@
+@startuml detectMove
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #4F46E5
+skinparam ActivityDiamondBackgroundColor #FEF9C3
+skinparam ActivityDiamondBorderColor #CA8A04
+skinparam ArrowColor #374151
+skinparam ActivityFontSize 13
+skinparam ActivityFontName Helvetica
+skinparam ActivityStartColor #4F46E5
+skinparam ActivityEndColor #4F46E5
+skinparam NoteBackgroundColor #F0FDF4
+skinparam NoteBorderColor #15803D
+skinparam Padding 4
+title detectMove() — 3-state reed switch machine
+
+start
+
+partition "Early-exit guards" {
+  if (!boardInitialized || suppressDetection?) then (yes)
+    :return;
+  else (no)
+  endif
+  if (stepper1->isRunning() || stepper2->isRunning()?) then (yes)
+    :return;
+  else (no)
+  endif
+  if (pendingMove.length() > 0?) then (yes)
+    :return;
+    note right: move already waiting\nfor player confirmation
+  else (no)
+  endif
+}
+
+partition "Settling window expiry check" {
+  if (detectState == PIECE_SETTLING\n&& millis() - settleStart >= SETTLE_WINDOW_MS?) then (yes — window expired)
+    note right: SETTLE_WINDOW_MS = 350 ms
+
+    :scan legalDests[] vs results[]\nbuild found[] of active legal squares\n(excluding liftedSquare)\nnFound = count;
+
+    if (nFound == 1?) then (yes)
+      :chosen = found[0];
+    else if (nFound > 1?) then (yes)
+      :chosen = found[0]\nnumCycleCandidates = min(nFound, MAX_CYCLE_CANDIDATES)\ncopy found[] -> cycleCandidates[]\ncycleIdx=0  lastCycleTime=millis();
+      note right
+        ambiguous destination —
+        cycles on LCD every 2 s
+      end note
+    else (nFound == 0)
+      :scan legalDests[] for any\ncurrently active sensor\n(not liftedSquare) -> activeFound;
+      if (activeFound found?) then (yes)
+        :chosen = activeFound;
+        note right
+          fallback: active sensor wins
+          over settleBestSquare ghost
+        end note
+      else (no)
+        :chosen = nearestLegal(settleBestSquare);
+        note right: "" if settleBest not legal
+      endif
+    endif
+
+    partition "Source resolution" {
+      if (chosen.length() > 0?) then (yes)
+        :nSrc = collectSourceCandidates(chosen, forWhite);
+        note right
+          scans all own pieces,
+          runs computeLegalDests + match,
+          fills cycleCandidates[]
+        end note
+        if (nSrc == 0?) then (yes)
+          :chosen = "";
+        else if (nSrc == 1?) then (yes)
+          :liftedSquare = cycleCandidates[0];
+        else (nSrc > 1)
+          :cyclingSource = true\ncycleIdx=0  lastCycleTime=millis()\nliftedSquare = cycleCandidates[0];
+          note right
+            ambiguous source —
+            cycles on LCD every 2 s
+          end note
+        endif
+      else (no)
+      endif
+    }
+
+    if (chosen == "" || chosen == liftedSquare?) then (yes — invalid)
+      :detectState = DETECT_IDLE\nliftedSquare = ""\nsettleBestSquare = ""\nsettleBestCount = 0\nnumCycleCandidates = 0\ncyclingSource = false;
+      note right: ghost or self-placement — discard
+      :return;
+    else (no — valid move found)
+      :pendingMove = liftedSquare + "->" + chosen\ndetectState = DETECT_IDLE\nliftedSquare = ""\nlcdUpdateRow1()\nprintBoardState();
+      note right
+        e.g. "e2->e4"
+        player presses colour button
+        to confirm via passOrConfirm()
+      end note
+      :return;
+    endif
+
+  else (no — window not expired or wrong state)
+  endif
+}
+
+partition "Per-cell debounce loop  [m=0..3, ch=0..15]" {
+  note left
+    NUM_MUX=4  NUM_CHANNELS=16
+    DEBOUNCE_TICKS=4
+  end note
+
+  :for m in 0..NUM_MUX-1:\n  for ch in 0..NUM_CHANNELS-1:;
+
+  :raw = results[m][ch];
+
+  if (raw == rawPrev[m][ch]?) then (same)
+    :sameCount[m][ch]++  (cap 255);
+  else (changed)
+    :sameCount[m][ch] = 1\nrawPrev[m][ch] = raw;
+  endif
+
+  if (sameCount[m][ch] < DEBOUNCE_TICKS?) then (yes — unstable)
+    :continue;
+  else (no — stable for 4 ticks)
+  endif
+
+  if (raw == boardState[m][ch]?) then (yes — no change)
+    :continue;
+  else (no — state changed)
+  endif
+
+  :boardState[m][ch] = raw\nsq = muxToSquareLower(m, ch);
+
+  if (!raw  — square went empty?) then (yes)
+
+    if (detectState == DETECT_IDLE?) then (yes)
+      :lfi = sq[0]-'a'  lri = sq[1]-'1';
+
+      if (pieceBoard[lfi][lri] == '.'?) then (yes — ghost)
+        :ESP_LOGI "Ghost lift ignored"\ncontinue;
+        note right
+          BUG FIX: reed noise from
+          adjacent magnet triggers
+          an empty square that was
+          never occupied — discard
+        end note
+      else (no — real piece)
+        :liftedSquare = sq\ndetectState = PIECE_IN_AIR\nsettleBestSquare = ""\nsettleBestCount = 0\ncomputeLegalDests(lfi, lri)\nresetBoardStateForLegalDests()\nlastDisplayedMove = ""\nlcdUpdateRow1();
+        note right
+          computeLegalDests fills
+          legalDests[] with all
+          pseudo-legal moves then
+          filters with filterChecks()
+        end note
+      endif
+    else (detectState != IDLE — ignore re-lift)
+    endif
+
+  else (raw — square became occupied)
+
+    if (detectState == PIECE_IN_AIR?) then (yes)
+      :settleStart = millis()\ndetectState = PIECE_SETTLING\nsettleBestSquare = sq\nsettleBestCount = sameCount[m][ch]\nlcdUpdateRow1();
+      note right
+        first landing candidate —
+        open 350 ms window to
+        let ghost reads settle
+      end note
+
+    else if (detectState == PIECE_SETTLING?) then (yes)
+      if (sameCount[m][ch] > settleBestCount?) then (yes)
+        :settleBestSquare = sq\nsettleBestCount = sameCount[m][ch];
+        note right
+          higher sameCount = more stable =
+          true destination;
+          ghost squares fade first
+        end note
+      else (no — weaker candidate, ignore)
+      endif
+
+    else (DETECT_IDLE — unexpected occupation, ignore)
+    endif
+
+  endif
+
+  :end for loops;
+}
+
+stop
+@enduml

@@ -1,0 +1,124 @@
+@startuml setup
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #4F46E5
+skinparam ActivityDiamondBackgroundColor #FEF9C3
+skinparam ActivityDiamondBorderColor #CA8A04
+skinparam ArrowColor #374151
+skinparam ActivityFontSize 13
+skinparam ActivityFontName Helvetica
+skinparam ActivityStartColor #4F46E5
+skinparam ActivityEndColor #4F46E5
+skinparam NoteBackgroundColor #F0FDF4
+skinparam NoteBorderColor #15803D
+skinparam Padding 4
+title setup() — ESP32-S3 CoreXY Chess Controller
+
+start
+
+:Serial.begin(115200)\ndelay(2000)\nSerial.println("=== SETUP START ===");
+
+partition "GPIO init" {
+  :pinMode(WHITE_BTN_PIN, INPUT_PULLUP)\npinMode(BLACK_BTN_PIN, INPUT_PULLUP)\npinMode(LIMIT_SWITCH_X_PIN, INPUT_PULLUP)\npinMode(LIMIT_SWITCH_Y_PIN, INPUT_PULLUP)\npinMode(ELECTROMAGNET_PIN, OUTPUT);
+}
+
+partition "FastAccelStepper init" {
+  :engine.init()\nstepper1 = engine.stepperConnectToPin(STEP1_PIN)\nstepper2 = engine.stepperConnectToPin(STEP2_PIN);
+
+  if (stepper1 && stepper2?) then (yes)
+  else (no)
+    :Serial.println("FATAL: steppers failed!")\ndelay(1000);
+    note right
+      system continues —
+      no hard halt
+    end note
+  endif
+
+  :stepper1->setDirectionPin(DIR1_PIN)\nstepper2->setDirectionPin(DIR2_PIN)\nstepper1->setAcceleration(ACCELERATION)\nstepper2->setAcceleration(ACCELERATION)\nstepper1->setCurrentPosition(0)\nstepper2->setCurrentPosition(0);
+  note right
+    ACCELERATION = 50 000 steps/s^2
+  end note
+}
+
+partition "4x16 MUX init" {
+  :pinMode(PIN_S0/S1/S2/S3, OUTPUT);
+  :for i in 0..NUM_MUX-1:\n  pinMode(EN_PINS[i], OUTPUT)\n  digitalWrite(EN_PINS[i], HIGH);
+  :pinMode(PIN_SIG, INPUT_PULLUP)\nmuxSelectChannel(0);
+}
+
+partition "I2C LCD init" {
+  :Wire.begin(LCD_SDA_PIN, LCD_SCL_PIN)\nLcd.init()\nLcd.backlight()\nLcd.clear()\nLcd.print("  AutoChessboard")\nLcd.print("   Starting...  ");
+}
+
+partition "Homing" {
+  :rgbLedWrite(38, R=128, G=128, B=0);
+  note right: amber = homing in progress
+  :homeAndMeasure(false);
+  note right
+    homes X axis (both fwd -> LIMIT_X)
+    then Y axis -> LIMIT_Y
+    setCurrentPosition(0, 0)
+    measures board dimensions
+  end note
+  :rgbLedWrite(38, R=0, G=0, B=255);
+  note right: blue = homing complete
+}
+
+partition "Reed switch snapshot" {
+  :muxScanAll();
+  note right: scans all 64 squares via 4x16 MUX
+  :memcpy(boardState, results, sizeof(boardState))\nmemcpy(rawPrev, results, sizeof(rawPrev))\nmemset(sameCount, 0, sizeof(sameCount))\nboardInitialized = true;
+  :lcdContent = muxBuildLcdString()\nlcdNeedsScroll = (lcdContent.length() > LCD_COLS);
+}
+
+partition "Piece board init" {
+  :initPieceBoard();
+  note right
+    sets standard starting position
+    regardless of reed switch state
+  end note
+  :Serial.println("Piece board set to standard starting position.")\nprintBoardState();
+}
+
+partition "Neural network init" {
+  :initNeuralNetwork();
+  note right
+    ps_malloc ~6.89 MB (flash -> PSRAM copy)
+    MicroMutableOpResolver<7>:
+      Conv2D, Add, Relu, Reshape,
+      FullyConnected, Pad, Transpose
+    128 KB arena
+    MicroInterpreter + AllocateTensors()
+    input  tensor: [1,8,8,18] INT8
+    output tensor: [1,4096]   INT8
+  end note
+}
+
+partition "Player color selection" {
+  :selectPlayerColor();
+  note right
+    polls BLACK_BTN (pin 14)
+    and WHITE_BTN (pin 13)
+    until one is pressed
+  end note
+
+  if (playerColor == COLOR_BLACK?) then (yes)
+    :computerMoveNeeded = true;
+    note right
+      computer plays White
+      and must move first
+    end note
+  else (no — player is White)
+  endif
+}
+
+:lcdUpdate();
+
+:ESP_LOGI("Ready. MAX_X=%d MAX_Y=%d ZONE=%d", ...)\nSerial.println("Commands: a1-h8 | e4-f3 | home");
+note right
+  MAX_X = 21 530 steps
+  MAX_Y = 22 332 steps
+  ZONE  =  4 000 steps
+end note
+
+stop
+@enduml

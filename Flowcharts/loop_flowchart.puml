@@ -1,0 +1,166 @@
+@startuml loop
+skinparam ActivityBackgroundColor #EEF2FF
+skinparam ActivityBorderColor #4F46E5
+skinparam ActivityDiamondBackgroundColor #FEF9C3
+skinparam ActivityDiamondBorderColor #CA8A04
+skinparam ArrowColor #374151
+skinparam ActivityFontSize 13
+skinparam ActivityFontName Helvetica
+skinparam ActivityStartColor #4F46E5
+skinparam ActivityEndColor #4F46E5
+skinparam NoteBackgroundColor #F0FDF4
+skinparam NoteBorderColor #15803D
+skinparam Padding 4
+title loop() — ESP32-S3 CoreXY Chess Controller
+
+start
+
+repeat
+
+  :checkEStop();
+  note right
+    reads WHITE_BTN + BLACK_BTN
+    both LOW = e-stop triggered
+    debounce count: 20 iterations
+  end note
+
+  if (checkEStop() == true?) then (yes)
+    :return;
+    note right: skip rest of loop body
+  else (no)
+  endif
+
+  partition "Computer move" {
+    if (computerMoveNeeded\n&& !isStopped\n&& !stepper1->isRunning()\n&& !stepper2->isRunning()?) then (yes)
+      :computerMoveNeeded = false\ndoComputerMove();
+      note right
+        encodes board -> NN
+        runs inference (~90 ms)
+        picks best legal move
+        calls executeMove()
+      end note
+    else (no)
+    endif
+  }
+
+  partition "Position debug print (250 ms)" {
+    if (millis() - lastPrintTime > 250?) then (yes)
+      :getLogicalPos(logX, logY)\nESP_LOGI L/R/B/T distances\nlastPrintTime = millis();
+      note right
+        L = absLogX
+        R = MAX_X_STEPS - absLogX
+        B = logY
+        T = MAX_Y_STEPS - logY
+      end note
+    else (no)
+    endif
+  }
+
+  partition "Serial command handler" {
+    if (Serial.available() > 0?) then (yes)
+      :cmd = Serial.readStringUntil('\n')\ncmd.trim()\ncmd.toLowerCase();
+
+      if (cmd == "pass"?) then (yes)
+        :flip currentTurn\nclear pendingMove / detectState / liftedSquare\nlcdUpdateRow1();
+      else if (cmd == "home"?) then (yes)
+        :rgbLedWrite amber\nhomeAndMeasure(true)\nrgbLedWrite blue;
+      else if (cmd == "magnet_on"?) then (yes)
+        :digitalWrite(ELECTROMAGNET_PIN, HIGH);
+      else if (cmd == "magnet_off"?) then (yes)
+        :digitalWrite(ELECTROMAGNET_PIN, LOW);
+      else if (cmd == "board"?) then (yes)
+        :printBoardState();
+      else if (cmd length==5 && cmd[2]=='-'?\ne.g. "e4-f3") then (yes)
+        if (file/rank chars valid?) then (yes)
+          :executeMove(f1,r1,f2,r2);
+        else (no)
+          :Serial.printf("Invalid move");
+        endif
+      else if (cmd length==6 && cmd[2]=='-' && cmd[3]=='>'?\ne.g. "e2->e4") then (yes)
+        if (file/rank chars valid?) then (yes)
+          :update pieceBoard\nupdate EP flags\nupdate castling flags\nflip currentTurn\nset computerMoveNeeded if AI turn\nlcdUpdateRow1()\nprintBoardState();
+          note right
+            manual move injection —
+            updates full board model
+            without physical movement
+          end note
+        else (no)
+          :Serial.printf("Invalid move");
+        endif
+      else if (cmd length==2?\ne.g. "a1") then (yes)
+        if (file/rank chars valid?) then (yes)
+          :moveToSquare(file, rank);
+        else (no)
+          :Serial.printf("Unknown");
+        endif
+      else (no match)
+        :Serial.printf("Unknown cmd — print help");
+      endif
+    else (no)
+    endif
+  }
+
+  partition "Fast scan tick (50 ms)" {
+    if (millis() - lastFastScan >= FAST_SCAN_MS?) then (yes)
+      :lastFastScan = now\nmuxScanAll();
+      note right: reads all 64 reed squares
+      :detectMove();
+      note right
+        3-state machine:
+        IDLE -> IN_AIR -> SETTLING -> pendingMove
+      end note
+      :updatePendingCandidates();
+      note right
+        rescans legal dest squares
+        rebuilds cycleCandidates[]
+      end note
+      :nc = muxBuildLcdString()\nif nc != lcdContent: reset scroll offset\nlcdUpdate();
+    else (no)
+    endif
+  }
+
+  partition "Cycle ambiguous candidates" {
+    :advanceCycling();
+    note right
+      every 3 s: steps cyclingSource
+      through multiple source candidates
+      when lift is ambiguous
+    end note
+  }
+
+  partition "Button handling" {
+    if (!stepper1->isRunning()\n&& !stepper2->isRunning()?) then (motors idle)
+      :bW = (WHITE_BTN_PIN == LOW)\nbB = (BLACK_BTN_PIN == LOW);
+      if (bW && bB?) then (yes — both pressed)
+        note right: e-stop already handled\nat top of loop
+      else (no)
+        if (bW?) then (yes)
+          :passOrConfirm(true)\ndelay(300);
+          note right
+            WHITE btn = confirm/pass
+            1.5 s hold = startNewGame()
+          end note
+        endif
+        if (bB?) then (yes)
+          :passOrConfirm(false)\ndelay(300);
+          note right
+            BLACK btn = confirm/pass
+            1.5 s hold = startNewGame()
+          end note
+        endif
+      endif
+    else (motors running — skip)
+    endif
+  }
+
+  partition "LCD scroll (300 ms)" {
+    if (lcdNeedsScroll\n&& millis() - lastLcdScroll >= LCD_SCROLL_INTERVAL_MS?) then (yes)
+      :lastLcdScroll = now\nlcdScrollOffset++\nlcdUpdate();
+    else (no)
+    endif
+  }
+
+repeat while (true)
+
+stop
+@enduml
