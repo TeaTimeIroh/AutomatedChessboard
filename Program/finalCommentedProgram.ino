@@ -6,7 +6,7 @@
 *   TensorFlow Lite Micro neural network to select the computer's
 *   reply, and physically executes that reply by driving a CoreXY
 *   gantry and electromagnet to pick up, route around blockers, and
-*   place pieces — including captures, en passant, and castling.
+*   place pieces, including captures, en passant, and castling.
 *   Game status, detected squares, and pending/confirmed moves are
 *   shown on a 16x2 LCD; two push buttons let each player confirm
 *   moves, pass, or start a new game (via a 1.5 s hold), and pressing
