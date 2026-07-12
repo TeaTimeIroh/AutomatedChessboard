@@ -1,12 +1,41 @@
-/******** Section: Library Includes
-* Description
-*   Pulls in all required third-party and system libraries:
-*   ESP32 system logging, FastAccelStepper motor control, I2C bus
-*   driver, 16x2 I2C LCD display, TensorFlow Lite Micro inference
-*   runtime, and the compiled chess neural-network model binary.
+/********** AutoChessboard — Autonomous CoreXY Chess-Playing Robot
+* Purpose
+*   The mC (ESP32-S3) runs a fully autonomous chess opponent. It scans
+*   a 64-square reed-switch board to detect the human player's moves,
+*   validates them against an onboard legal-move generator, runs a
+*   TensorFlow Lite Micro neural network to select the computer's
+*   reply, and physically executes that reply by driving a CoreXY
+*   gantry and electromagnet to pick up, route around blockers, and
+*   place pieces — including captures, en passant, and castling.
+*   Game status, detected squares, and pending/confirmed moves are
+*   shown on a 16x2 LCD; two push buttons let each player confirm
+*   moves, pass, or start a new game (via a 1.5 s hold), and pressing
+*   both together triggers a debounced emergency stop.
+* Hardware
+*   ESP32-S3 Microtroller. Two DRV8825-driven CoreXY stepper
+*   motors (STEP/DIR on GPIO 39-42) for the gantry, with an
+*   electromagnet end-effector (GPIO 2) for picking up pieces. Two
+*   limit switches (GPIO 1, 4) for homing. Four CD74HC4067
+*   multiplexers (address GPIO 16-18/8, enable GPIO 5-7/15, shared
+*   signal GPIO 9) scan 64 reed switches embedded in the board. A
+*   16x2 I2C LCD (address 0x27, SDA GPIO 47, SCL GPIO 48) displays
+*   status. Two push buttons (GPIO 13 WHITE, GPIO 14 BLACK, internal
+*   pull-ups) serve as player controls, and an RGB status LED
+*   (GPIO 38) indicates system state (homing/idle/moving/e-stop).
+* Software
+*   Built on FastAccelStepper for CoreXY motion profiling, Wire /
+*   LiquidCrystal_I2C for the display, and TensorFlow Lite Micro
+*   (with a compiled chess_model_data.h network) for move inference.
+*   Implements its own legal-move generator (pseudo-legal generation
+*   plus check filtering) to validate human moves and to constrain
+*   the neural network's candidate outputs. Board state, castling
+*   rights, en-passant target, and turn order are tracked in
+*   software and kept in sync with the physical board via a
+*   debounced 3-state (idle / in-air / settling) move detector.
 * Reference
 *   V1.0, Thomas Tsantilas, May 2026
-********/
+**********/
+
 #include "esp_log.h"
 #include <FastAccelStepper.h>
 #include <Wire.h>
@@ -16,70 +45,23 @@
 #include "tensorflow/lite/micro/micro_mutable_op_resolver.h"
 #include "tensorflow/lite/schema/schema_generated.h"
 
-
-/******** Section: Stepper Motor Pin Definitions
-* Description
-*   Assigns the STEP and DIR output pins for both CoreXY stepper
-*   drivers (DRV8825, 1/16 microstepping) connected to the ESP32-S3.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define DIR1_PIN  42
 #define STEP1_PIN 41
 #define DIR2_PIN  40
 #define STEP2_PIN 39
 
-
-/******** Section: Path-Clearance Constants
-* Description
-*   PATH_THRESHOLD_FRAC controls how close an occupied square's centre
-*   must be to the electromagnet travel line before it is classified as
-*   a blocker needing relocation (0.55 ≈ 20 mm at 37.5 mm/square).
-*   MAX_BLOCKERS caps the size of the temporary blocker arrays used in
-*   findPathBlockersRoute() and executeMove().
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define PATH_THRESHOLD_FRAC  0.55f
 #define MAX_BLOCKERS          6
 
-
-/******** Section: I/O Pin Assignments
-* Description
-*   Byte-constant GPIO numbers for the two homing limit switches,
-*   the two player confirm/e-stop push buttons, and the electromagnet
-*   relay output. All inputs use internal pull-ups.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 const byte LIMIT_SWITCH_Y_PIN = 4;
 const byte LIMIT_SWITCH_X_PIN = 1;
 const byte WHITE_BTN_PIN      = 13;
 const byte BLACK_BTN_PIN      = 14;
 const byte ELECTROMAGNET_PIN  = 2;
 
-
-/******** Section: Physical Travel Limits
-* Description
-*   Maximum step counts for the X and Y CoreXY axes, calibrated to
-*   the physical board dimensions. Re-verify with homeAndMeasure() if
-*   drift exceeds 200 steps after mechanical changes.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 const int32_t MAX_X_STEPS = 21530;
 const int32_t MAX_Y_STEPS = 22332;
 
-
-/******** Section: Speed and Acceleration Settings
-* Description
-*   Stepper speed (steps/sec) and acceleration (steps/sec²) values for
-*   three operating modes: slow calibration/homing speed, full-speed
-*   piece movement, and the slow-down zone threshold near the walls.
-*   Do not change without re-verifying mechanical limits.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 const uint32_t CALIBRATION_SPEED = 1600;
 const uint32_t ACCELERATION      = 50000;
 const int32_t  SLOWDOWN_ZONE     = 4000;
@@ -87,16 +69,6 @@ const int32_t  STEPS_PER_SQUARE  = 3000;
 const uint32_t MOVE_SPEED        = 8000;
 const uint32_t MOVE_ACCEL        = 40000;
 
-
-/******** Section: Multiplexer Pin Definitions
-* Description
-*   GPIO assignments for the four CD74HC4067 16-channel analog
-*   multiplexers used to scan all 64 reed switches. S0-S3 select
-*   the active channel; EN0-EN3 enable individual multiplexers;
-*   SIG is the shared digital read line.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define PIN_S0  16
 #define PIN_S1  17
 #define PIN_S2  18
@@ -110,60 +82,21 @@ const uint32_t MOVE_ACCEL        = 40000;
 #define NUM_MUX      4
 #define NUM_CHANNELS 16
 
-
-/******** Section: LCD Configuration
-* Description
-*   I2C address, SDA/SCL GPIO pin assignments, and character-grid
-*   dimensions for the 16x2 LCD used for game status display.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define LCD_I2C_ADDRESS  0x27
 #define LCD_SDA_PIN      47
 #define LCD_SCL_PIN      48
 #define LCD_COLS         16
 #define LCD_ROWS          2
 
-
-/******** Section: Timing and Debounce Constants
-* Description
-*   Millisecond periods and tick counts governing the reed-switch scan
-*   loop, LCD scroll animation, per-cell debounce (4 ticks x 50 ms =
-*   200 ms), the piece-settling window, and the e-stop debounce count
-*   (20 samples x 5 ms = 100 ms minimum sustained press).
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define FAST_SCAN_MS           50
 #define LCD_SCROLL_INTERVAL_MS 300
 #define DEBOUNCE_TICKS          4
 #define SETTLE_WINDOW_MS      350
 #define ESTOP_DEBOUNCE_COUNT   20
 
-
-/******** Section: Neural Network Dimensions
-* Description
-*   Scratch-arena size allocated in PSRAM for TFLite Micro inference,
-*   and the total number of move labels in the model output layer
-*   (64 from-squares × 64 to-squares = 4096).
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 #define NN_ARENA_SIZE  (128 * 1024)
 #define NN_N_MOVES      4096
 
-
-/******** Section: Global Objects and State Variables
-* Description
-*   All module-level instances and flags shared across functions.
-*   Includes the FastAccelStepper engine and stepper pointers,
-*   MUX scan result and debounce arrays, LCD content and scroll state,
-*   board occupancy and piece-model arrays, the 3-state move-detector
-*   variables, legal-move and cycling buffers, en-passant and castling
-*   rights, game colour and turn enumerations, and TFLite handles.
-* Reference
-*   V1.0, Thomas Tsantilas, May 2026
-********/
 static const char* TAG = "MAIN";
 
 FastAccelStepperEngine engine = FastAccelStepperEngine();
