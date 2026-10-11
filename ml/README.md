@@ -37,7 +37,10 @@ python 04_convert_to_tflite.py
 python 05_tflite_to_header.py
 ```
 
-**Known rough edge:** scripts 02-05 still contain absolute Windows paths (`G:\ChessAI\LichessEvaluations\...`) in their configuration block at the top. Edit them before running. `calib_data.npy` is a sample of 500 positions from `X.npy`. TODO: add the one-liner used to create it.
+**Known rough edge:** scripts 02-05 still contain absolute Windows paths (`G:\ChessAI\LichessEvaluations\...`) in their configuration block at the top. Edit them before running. `calib_data.npy` is a sample of 500 positions from `X.npy`. You can regenerate it using this Python one-liner:
+```python
+import numpy as np; np.save('calib_data.npy', np.load('X.npy')[np.random.choice(len(np.load('X.npy')), 500, replace=False)])
+```
 
 ## Experiments kept for the record
 

@@ -1,9 +1,8 @@
 # Environment 1 (training, export, desktop play) - Python 3.10+ recommended
-# TODO: replace with exact versions from `pip freeze` in your pytorch_env
-torch
-numpy
-python-chess
-zstandard
-tqdm
-onnx
-pygame
+torch==2.4.1
+numpy==1.26.4
+python-chess==1.999
+zstandard==0.25.0
+tqdm==4.67.3
+onnx==1.17.0
+pygame==2.6.1

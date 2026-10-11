@@ -6,13 +6,13 @@
 *   TensorFlow Lite Micro neural network to select the computer's
 *   reply, and physically executes that reply by driving a CoreXY
 *   gantry and electromagnet to pick up, route around blockers, and
-*   place pieces, including captures, en passant, and castling.
+*   place pieces, including captures and castling.
 *   Game status, detected squares, and pending/confirmed moves are
 *   shown on a 16x2 LCD; two push buttons let each player confirm
 *   moves, pass, or start a new game (via a 1.5 s hold), and pressing
 *   both together triggers a debounced emergency stop.
 * Hardware
-*   ESP32-S3 Microtroller. Two DRV8825-driven CoreXY stepper
+*   ESP32-S3 Microcontroller. Two DRV8825-driven CoreXY stepper
 *   motors (STEP/DIR on GPIO 39-42) for the gantry, with an
 *   electromagnet end-effector (GPIO 2) for picking up pieces. Two
 *   limit switches (GPIO 1, 4) for homing. Four CD74HC4067
@@ -1701,8 +1701,8 @@ void advanceCycling() {
 *                       window and records the first placement candidate,
 *                       entering PIECE_SETTLING.
 *     PIECE_SETTLING  — additional occupied events update the best
-*                       candidate (highest sameCount wins). When the
-*                       SETTLE_WINDOW_MS window expires the best active
+*                       candidate (highest sameCount wins in case of no active legal squares). 
+*                       When the SETTLE_WINDOW_MS window expires the best active                      
 *                       legal destination is committed to pendingMove
 *                       and the state returns to DETECT_IDLE.
 *   Ghost reed-switch activations from adjacent squares fade first
@@ -1761,7 +1761,7 @@ void detectMove() {
       chosen        = found[0];
       Serial.printf("  >> Ambiguous dest: %d:", nFound);
       for (int i = 0; i < nFound; i++) Serial.printf(" %s", found[i].c_str());
-      Serial.println(" — cycling dests every 2s");
+      Serial.println(" — cycling dests every 3s");
     } else {
       String activeFound = "";
       for (int i = 0; i < numLegalDests; i++) {
@@ -1798,7 +1798,7 @@ void detectMove() {
         liftedSquare  = cycleCandidates[0];
         Serial.printf("  >> Ambiguous src: %d:", nSrc);
         for (int i = 0; i < nSrc; i++) Serial.printf(" %s", cycleCandidates[i].c_str());
-        Serial.println(" — cycling sources every 2s");
+        Serial.println(" — cycling sources every 3s");
       }
     }
 
@@ -1887,7 +1887,7 @@ void detectMove() {
 * Purpose
 *   Initialises the TensorFlow Lite Micro inference engine for the chess
 *   move model. Copies the model binary from flash into PSRAM to eliminate
-*   cache thrashing during inference (≈90 ms vs ≈825 ms in flash). Parses
+*   cache thrashing during inference (≈500 ms vs ≈950 ms in flash). Parses
 *   the model, registers the required ops, allocates the scratch arena, and
 *   constructs a static MicroInterpreter that outlives setup(). Logs tensor
 *   shapes, quantisation parameters, and memory usage to Serial.
@@ -2521,7 +2521,7 @@ void loop() {
 * Purpose
 *   Polls both player buttons and toggles the global isStopped flag when
 *   both are held simultaneously for at least ESTOP_DEBOUNCE_COUNT
-*   consecutive 5 ms samples (≈100 ms). The debounce count requirement
+*   20 consecutive calls. The debounce count requirement
 *   prevents EMI spikes induced by stepper phase switching or electromagnet
 *   transients from triggering a false e-stop. A 400 ms block delay after
 *   the toggle prevents rapid re-triggering from a sustained hold. When
@@ -2749,7 +2749,7 @@ static void squareToStepCoords(char file, char rank, float &tx, float &ty) {
 *   ax, ay    Coordinates of segment endpoint A (float, by-value).
 *   bx, by    Coordinates of segment endpoint B (float, by-value).
 * Results
-*   - Returns the squared distance (float). No return value.
+*   - Returns the squared distance (float). 
 * Hardware
 *   None.
 * Software
@@ -2975,7 +2975,7 @@ static int findPathBlockersRoute(char f1, char r1, char f2, char r2,
 
 /******** function findParkingSquare
 * Purpose
-*   Searches outward from origF/origR in a spiral of increasing Manhattan
+*   Searches outward from origF/origR in a spiral of increasing Chebyshev
 *   distance for the nearest empty square that satisfies all constraints:
 *   not on the main travel path, not already reserved by resF[]/resR[],
 *   and reachable via an L-path whose intermediate waypoint is unoccupied.
@@ -3043,7 +3043,7 @@ static bool findParkingSquare(char origF, char origR,
 * Purpose
 *   Physically moves a piece from square (f1,r1) to (f2,r2) using the
 *   electromagnet. Approaches the source with magnet off, energises it,
-*   waits for coupling (400 ms near a wall, 200 ms elsewhere), then
+*   waits for coupling (600 ms near a wall, 400 ms elsewhere), then
 *   carries the piece along the L-shaped route from computeMagnetRoute()
 *   and releases at the destination. If isStopped fires during any carry
 *   segment the magnet is de-energised and the function returns early.
@@ -3211,7 +3211,7 @@ void updatePendingCandidates() {
   }
   Serial.printf("  Candidates updated: %s [%d option%s]\n",
                 pendingMove.c_str(), nFound,
-                nFound > 1 ? " — cycling every 2s" : "");
+                nFound > 1 ? " — cycling every 3s" : "");
 }
 
 

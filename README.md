@@ -10,7 +10,7 @@ Built as my Master's thesis (Integrated MSc, Industrial Design & Production Engi
 
 <p align="center"><img src="docs/images/final_top-view_20260429_174103.jpg" width="48%"> <img src="docs/images/final_angled-view_20260501_181239.jpg" width="48%"></p>
 
-Full-length demo video: [`docs/media/demo_first_moves.mp4`](docs/media/demo_first_moves.mp4)
+30-second demo video: [`docs/media/demo_first_moves.mp4`](docs/media/demo_first_moves.mp4)
 
 ## How it works
 
@@ -18,7 +18,7 @@ Full-length demo video: [`docs/media/demo_first_moves.mp4`](docs/media/demo_firs
 |---|---|---|
 | **Perception** | Detects the human move | 64 reed switches read through 4 x CD74HC4067 multiplexers every 50 ms; debounced 3-state detector (idle / piece in air / settling, 350 ms window); own legal-move generator rejects impossible reads |
 | **Processing** | Chooses the reply | 6.75 M-parameter residual CNN, INT8, running on TensorFlow Lite Micro; output is filtered to legal moves |
-| **Motion** | Moves the piece | CoreXY gantry, 2 x NEMA17 + DRV8825, FastAccelStepper (hardware pulse generation), limit-switch homing; planner compares 3 candidate routes and relocates blocking pieces; handles captures, castling, en passant and auto-queen promotion |
+| **Motion** | Moves the piece | CoreXY gantry, 2 x NEMA17 + DRV8825, FastAccelStepper (hardware pulse generation), limit-switch homing; planner compares 3 candidate routes and relocates blocking pieces; handles captures, castling and auto-queen promotion |
 
 Safety: both buttons together trigger a debounced emergency stop (polled every 5 ms during motion).
 
@@ -28,7 +28,7 @@ Safety: both buttons together trigger a debounced emergency stop (polled every 5
 |---|---|
 | Model | 6,751,536 parameters, 6 residual blocks x 64 channels, input 8x8x18, output 4096 (from x 64 + to) |
 | Size | 27 MB float -> **6.9 MB INT8** (fits the 8 MB flash together with the firmware) |
-| Inference on ESP32-S3 | **about 90 ms** with the model copied to PSRAM, vs about 825 ms executing from flash |
+| Inference on ESP32-S3 | **about 500 ms** with the model copied to PSRAM, vs about 825 ms executing from flash |
 | Training data | 5,000,000 positions extracted from the Lichess evaluation database (19 GB, Stockfish-evaluated) |
 | Training | 4.75 M train / 250 k validation, 20 epochs, RTX 3060, 53.8 min |
 | Validation accuracy | **37.3 % top-1, 79.5 % top-5** (matching Stockfish's best move) |
@@ -58,7 +58,7 @@ Schematic (EasyEDA): [`electronics/schematic.png`](electronics/schematic.png)
 | Buttons White / Black | 13 / 14 |
 | RGB status LED | 38 |
 
-3D-printable parts (frame, trolley, mounts, UI enclosure, pieces) are in [`cad/`](cad/). The bill of materials is in the thesis. **TODO: add `electronics/BOM.csv`.**
+3D-printable parts (frame, trolley, mounts, UI enclosure, pieces) are in [`cad/`](cad/). The bill of materials: [Read BOM](electronics/BOM.csv) 
 
 ### Build photos
 
@@ -75,9 +75,9 @@ More in [`docs/images/`](docs/images/) (named by build phase).
 
 Open `firmware/AutoChessboard/AutoChessboard.ino` in the Arduino IDE. Settings that matter (the firmware stops with an error if PSRAM is off):
 
-- Board: **ESP32S3 Dev Module**, Flash 8 MB, **PSRAM: OPI PSRAM**
+- Board: **ESP32S3 N8R8 Dev Module**, Flash 8 MB, **PSRAM: OPI PSRAM**
 - Partition scheme: custom, using `partitions.csv` from the sketch folder
-- Libraries: FastAccelStepper, LiquidCrystal_I2C, TensorFlow Lite Micro for ESP32 (**TODO: exact library and core versions you tested**)
+- Libraries: FastAccelStepper@1.2.5, LiquidCrystal_I2C@2.0.0, TensorFlow Lite Micro for ESP32@3.3.7
 
 ## Train your own model
 
@@ -86,7 +86,7 @@ See [`ml/README.md`](ml/README.md): five numbered scripts from raw Lichess data 
 ## Design decisions
 
 - **TFLite Micro instead of ESP-DL.** I first quantized with ESP-PPQ to the `.espdl` format, but ESP-DL targets ESP-IDF and has no Arduino support, so I converted ONNX -> TFLite instead (the attempt is kept in `ml/experiments/espdl/`).
-- **Model in PSRAM.** Running inference straight from flash was slow (about 825 ms); copying the 6.9 MB model to PSRAM brought it to about 90 ms.
+- **Model in PSRAM.** Running inference straight from flash was slow (about 950 ms); copying the 6.9 MB model to PSRAM brought it to about 500 ms.
 - **Custom partition table.** The default Arduino layouts leave too little app space for firmware plus model, so the app partition is 7.9 MB with a small core-dump partition for post-mortem debugging.
 - **Reed switches, knowingly.** They avoid a custom PCB, but they are binary and neighbouring fields overlap. That is the weakest subsystem, so the firmware validates every detected move in software before acting on it.
 
@@ -95,6 +95,7 @@ See [`ml/README.md`](ml/README.md): five numbered scripts from raw Lichess data 
 - Heavy motor and electromagnet switching corrupted the I2C bus, so the LCD is re-initialised at the start of every game.
 - The emergency-stop flag is reset only *after* homing completes, so an EMI spike during homing cannot freeze the main loop.
 - Sensor noise needed a settle window and debouncing before a lifted-and-placed piece counted as a move.
+- Slow down trolley inside the perimeter to protect fragile limit switches from high-speed impact.
 
 ## Known limitations and roadmap
 
@@ -109,7 +110,7 @@ Firmware (what I would change next):
 
 Lichess open database (CC0), Stockfish, python-chess, FastAccelStepper, TensorFlow Lite Micro. I used LLMs (Claude, Gemini) for some helper scripts, debugging help and code comments; the design, integration and testing are my own work, and the thesis documents this in a dedicated chapter.
 
-Thesis (Greek, 202 pages): **TODO: link** (`docs/thesis_el.pdf`) - Supervisor: Avraam Chatzopoulos
+Thesis (Greek, 202 pages): [Read PDF](docs/thesis_el.pdf) - Supervisor: Avraam Chatzopoulos
 
 ## License
 

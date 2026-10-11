@@ -1,6 +1,5 @@
 # Environment 2 (ONNX -> INT8 TFLite) - kept separate because TensorFlow and PyTorch conflict
-# TODO: replace with exact versions from `pip freeze` in your tflite_env
-tensorflow
-onnx2tf
-onnx
-numpy
+tensorflow==2.20.0
+onnx2tf==1.29.24
+onnx==1.16.1
+numpy==1.26.4

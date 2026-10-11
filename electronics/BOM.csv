@@ -1,0 +1,40 @@
+Category,Reference,Item,Model / value,Qty,Unit price (EUR),Line total (EUR),Notes
+Electronics,U1,Microcontroller,"ESP32-S3-DevKitC-1 N8R8 (8 MB flash, 8 MB PSRAM)",1,13.00,13.00,Runs the firmware and the neural network
+Electronics,"U3, U5",Stepper driver,DRV8825,2,2.50,5.00,One per CoreXY motor
+Electronics,"U4, U6",Stepper motor,NEMA17 42BYGHW208,2,12.60,25.20,CoreXY drive
+Electronics,U7,Electromagnet,"KK-P25/20, 8 kg",1,10.00,10.00,Moves the magnetic pieces
+Electronics,U8,Buck converter,5 V output (step-down),1,3.00,3.00,12 V to 5 V
+Electronics,U9,LCD display,"16x2 I2C, 3.3 V",1,3.50,3.50,Player interface
+Electronics,"U10, U44, U45, U78",Analog multiplexer,"CD74HC4067, 16 channels",4,1.50,6.00,4 x 16 = 64 channels for the reed switches
+Electronics,"U11-U26, U28-U43, U46-U61, U62-U77",Reed switch,-,64,0.1875,12.00,One per square
+Electronics,U2,DC power supply,12 V,1,10.00,10.00,Main power source
+Electronics,U27,Fuse,3 A,1,0.10,0.10,Overcurrent protection
+Electronics,Q1,N-channel MOSFET,IRLB8721PBF,1,1.00,1.00,Switches the electromagnet
+Electronics,D1,Rectifier diode,1N5404,1,0.10,0.10,Flyback protection for the electromagnet
+Electronics,R1,Resistor,470 ohm,1,0.01,0.01,MOSFET gate resistor
+Electronics,R2,Resistor,10 kohm,1,0.01,0.01,MOSFET gate pull-down
+Electronics,"C1, C2",Electrolytic capacitor,100 uF,2,0.15,0.30,Supply smoothing for the DRV8825 drivers
+Electronics,SW1,Rocker switch,-,1,0.40,0.40,Main power switch
+Electronics,"SW2, SW3",Microswitch (limit switch),-,2,0.40,0.80,Homing (origin) switches
+Electronics,"PB1, PB2",Push button,-,2,0.30,0.60,White and black player buttons
+Mechanical,-,Pulleys,-,2,1.60,3.20,Motion system
+Mechanical,-,Timing belt,"GT2, 10 m",1,10.00,10.00,Motion system
+Mechanical,-,"PLA filament, white",1 kg,1,10.00,10.00,White pieces
+Mechanical,-,"PLA filament, black",1 kg,1,10.00,10.00,"Black pieces, mounts and carriages"
+Mechanical,-,"PLA filament, gray",1 kg,1,10.00,10.00,Beams
+Mechanical,-,Bearings,-,32,0.25,8.00,All wheels of the motion system
+Mechanical,-,V-slot wheels,-,8,1.00,8.00,Moving carriages
+Mechanical,-,Idler wheels,-,8,1.00,8.00,Belt routing
+Mechanical,-,Wooden board,-,2,6.00,12.00,Base and chessboard
+Mechanical,-,Vinyl,-,1,15.00,15.00,Printed board appearance
+Mechanical,-,Wire,"22 AWG, 10 m",1,6.00,6.00,Reed-switch grid wiring
+Mechanical,-,Jumper wires,100 pcs,1,4.00,4.00,Breadboard wiring
+Mechanical,-,Breadboard,full size,2,3.00,6.00,Prototype circuit
+Mechanical,-,Half breadboard,-,1,4.00,4.00,ESP32-S3 board
+Mechanical,-,Perfboard,-,5,0.60,3.00,Power circuit
+Mechanical,-,Screws,"M3/M5, 100 pcs",1,2.00,2.00,Beams and motors
+Mechanical,-,Nuts,"M3/M5, 100 pcs",1,2.00,2.00,Beams and motors
+Mechanical,-,Spacers,-,10,0.10,1.00,Carriage wheels
+,,,,,Electronics subtotal,91.02,
+,,,,,Mechanical subtotal,122.20,
+,,,,,TOTAL,213.22,"Prices as listed in the thesis, Table 12"
