@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Training artefacts that should not be committed (regenerate or attach to a GitHub Release)
+dataset/
+checkpoints/
+*.npy
+*.zst
+*.jsonl
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Arduino / PlatformIO build output
+build/
+.pio/
