@@ -1,11 +1,12 @@
 # Automated Robotic Chessboard
 [![Compile firmware](https://github.com/TeaTimeIroh/AutomatedChessboard/actions/workflows/compile.yml/badge.svg)](https://github.com/TeaTimeIroh/AutomatedChessboard/actions/workflows/compile.yml)
+![license](https://img.shields.io/badge/license-GPL--3.0-blue)
+![MCU](https://img.shields.io/badge/MCU-ESP32--S3-red)
+![ML](https://img.shields.io/badge/ML-TFLite%20Micro%20INT8-orange)
 
 A self-contained chessboard that **detects your move, chooses a reply with a neural network running on a microcontroller, and physically moves its own pieces** with an electromagnet on a CoreXY gantry. No PC or internet needed during play.
 
 Built as my Master's thesis (Integrated MSc, Industrial Design & Production Engineering, University of West Attica, 2026).
-
-![License](https://img.shields.io/badge/license-GPL--3.0-blue) ![MCU](https://img.shields.io/badge/MCU-ESP32--S3-red) ![ML](https://img.shields.io/badge/ML-TFLite%20Micro%20INT8-orange)
 
 ![Demo: the human plays a pawn, the board answers](docs/media/FirstMoves.gif)
 
