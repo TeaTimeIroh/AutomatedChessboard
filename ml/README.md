@@ -13,7 +13,7 @@ Everything needed to go from the raw Lichess database to the INT8 model that run
 | 5. Embed | `05_tflite_to_header.py` | `.tflite` | `chess_model_data.h` (C array for the sketch) | train |
 | Test on PC | `play_chess.py`, `play_chess_tf.py` | model | pygame UI to play against the float or INT8 model | train / tflite |
 
-## What the first run actually did
+## What the first training run did
 
 - Scanned **6,098,896** records of the Lichess evaluation file and kept **5,000,000** (stopped once the target was reached).
 - Filters: Stockfish depth >= 20, |eval| <= 10 pawns, at least 2 legal moves; dropped forced moves, mate-in-1 and "blowout" positions.

@@ -58,7 +58,7 @@ Schematic (EasyEDA): [`electronics/schematic.png`](electronics/schematic.png)
 | Buttons White / Black | 13 / 14 |
 | RGB status LED | 38 |
 
-3D-printable parts (frame, trolley, mounts, UI enclosure, pieces) are in [`cad/`](cad/). The bill of materials: [Read BOM](electronics/BOM.csv) 
+3D-printable parts (frame, trolley, mounts, UI enclosure, pieces) are in [`cad/`](cad/). The bill of materials: [`BOM`](electronics/BOM.csv) 
 
 ### Build photos
 
@@ -110,7 +110,7 @@ Firmware (what I would change next):
 
 Lichess open database (CC0), Stockfish, python-chess, FastAccelStepper, TensorFlow Lite Micro. I used LLMs (Claude, Gemini) for some helper scripts, debugging help and code comments; the design, integration and testing are my own work, and the thesis documents this in a dedicated chapter.
 
-Thesis (Greek, 202 pages): [Read PDF](docs/thesis_el.pdf) - Supervisor: Avraam Chatzopoulos
+Thesis (Greek, 202 pages): [`PDF`](docs/thesis_el.pdf) - Supervisor: Avraam Chatzopoulos
 
 ## License
 
