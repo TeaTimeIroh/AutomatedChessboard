@@ -17,6 +17,10 @@ jobs:
         with:
           # Same settings as in the Arduino IDE: ESP32S3 Dev Module, 8 MB flash, OPI PSRAM, custom partitions.csv
           fqbn: esp32:esp32:esp32s3:FlashSize=8M,PSRAM=opi,PartitionScheme=custom
+          
+          cli-compile-flags: |
+            - --build-property
+            - upload.maximum_size=8257536
           platforms: |
             - name: esp32:esp32
               version: 3.3.7          

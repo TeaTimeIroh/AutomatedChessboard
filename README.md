@@ -1,5 +1,5 @@
 # Automated Robotic Chessboard
-
+[![Compile firmware](https://github.com/TeaTimeIroh/AutomatedChessboard/actions/workflows/compile.yml/badge.svg)](https://github.com/TeaTimeIroh/AutomatedChessboard/actions/workflows/compile.yml)
 A self-contained chessboard that **detects your move, chooses a reply with a neural network running on a microcontroller, and physically moves its own pieces** with an electromagnet on a CoreXY gantry. No PC or internet needed during play.
 
 Built as my Master's thesis (Integrated MSc, Industrial Design & Production Engineering, University of West Attica, 2026).
