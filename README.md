@@ -28,12 +28,12 @@ Safety: both buttons together trigger a debounced emergency stop (polled every 5
 |---|---|
 | Model | 6,751,536 parameters, 6 residual blocks x 64 channels, input 8x8x18, output 4096 (from x 64 + to) |
 | Size | 27 MB float -> **6.9 MB INT8** (fits the 8 MB flash together with the firmware) |
-| Inference on ESP32-S3 | **about 500 ms** with the model copied to PSRAM, vs about 825 ms executing from flash |
+| Inference on ESP32-S3 | **about 500 ms** with the model copied to PSRAM, vs about 950 ms executing from flash |
 | Training data | 5,000,000 positions extracted from the Lichess evaluation database (19 GB, Stockfish-evaluated) |
 | Training | 4.75 M train / 250 k validation, 20 epochs, RTX 3060, 53.8 min |
 | Validation accuracy | **37.3 % top-1, 79.5 % top-5** (matching Stockfish's best move) |
 | Firmware | about 2,100 lines of C++ (plus extensive comments), custom 8 MB partition table with core-dump partition |
-| Cost | about 225 EUR of parts |
+| Cost | about 213 EUR of parts (see BOM) |
 
 **How to read the accuracy:** the labels are Stockfish's best move, and many positions have several good moves, so top-1 is naturally modest. The goal was a plausible, human-level opponent, not a perfect one. Playing strength has **not** been formally rated; the design target was roughly club level (about 1500 Elo).
 
